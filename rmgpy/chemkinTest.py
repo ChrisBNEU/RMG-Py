@@ -547,48 +547,23 @@ C 1 H 3 N 1 O 2 S 1 X 1
     
     @wipd
     def test_write_bidentate_species(self):
+        import linecache
         """Test that species with 2 or more surface sites get proper formatting"""
-        # s1 = Species().from_adjacency_list("""CHOX2
-        # 1 O u0 p2 c0 {2,S} {5,S}
-        # 2 C u0 p0 c0 {1,S} {3,S} {4,D}
-        # 3 H u0 p0 c0 {2,S}
-        # 4 X u0 p0 c0 {2,D}
-        # 5 X u0 p0 c0 {1,S}""")
-
-        # s2 = Species().from_adjacency_list("""CH2OX2(52)
-        # 1 O u0 p2 c0 {2,S} {6,S}
-        # 2 C u0 p0 c0 {1,S} {3,S} {4,S} {5,S}
-        # 3 H u0 p0 c0 {2,S}
-        # 4 H u0 p0 c0 {2,S}
-        # 5 X u0 p0 c0 {2,S}
-        # 6 X u0 p0 c0 {1,S}""")
-
-        # s3 = Species().adjacency_list("""H*(10)
-        # 1 H u0 p0 c0 {2,S}
-        # 2 X u0 p0 c0 {1,S}""")
-
-        # s4 = Species().from_adjacency_list("""X(1)
-        # 1 X u0 p0 c0""")
-
         folder = os.path.join(os.path.dirname(rmgpy.__file__), 'test_data/chemkin/chemkin_py')
         chemkin_path = os.path.join(folder, 'surface', 'chem-surface.inp')
         dictionary_path = os.path.join(folder, 'surface', 'species_dictionary.txt')
         chemkin_save_path = os.path.join(folder, 'surface', 'chem-surface-test.inp')
         species, reactions = load_chemkin_file(chemkin_path,dictionary_path)
 
-        # print(species,'\n')
-        # s1 = Species().from_smiles(str(species[2].molecule.smiles))
-        print(species[2].molecule[0])
-        # print(speciesformula)
-        # if 'X' in formula:
-        #     print("ok step 1")
-        #     if formula['X']>=2:
-        # print(reactions)
-            
+        element_list = species[3].molecule[0].get_element_count()
+        surface_atom_count = element_list.get('X')  
         save_chemkin_surface_file(chemkin_save_path, species, reactions, verbose=False, check_for_duplicates=False)
         
-        
-        self.assertEqual(1, 0)
+        line1 = "    CH2OX2(52)/2/             \n"
+        line2 = linecache.getline(chemkin_save_path, 4)
+        print(line1)
+        self.assertEqual(line1, line2)
+        # self.assertEqual(1,0)
 
 
         # os.remove(chemkin_save_path)
