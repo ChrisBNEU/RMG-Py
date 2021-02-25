@@ -552,6 +552,7 @@ C 1 H 3 N 1 O 2 S 1 X 1
         species, reactions = load_chemkin_file(chemkin_path, dictionary_path)
 
         surface_atom_count = species[3].molecule[0].get_num_atoms('X')
+        self.assertEqual(surface_atom_count, 3)
         save_chemkin_surface_file(chemkin_save_path, species, reactions, verbose=False, check_for_duplicates=False)
         
         bidentate_test = "    CH2OX2(52)/2/             \n"
