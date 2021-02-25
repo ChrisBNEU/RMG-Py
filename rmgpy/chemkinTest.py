@@ -566,9 +566,8 @@ C 1 H 3 N 1 O 2 S 1 X 1
 
         self.assertEqual(bidentate_test.strip(), bidentate_read.strip())
         self.assertEqual(tridentate_test.strip(), tridentate_read.strip())
-        print(tridentate_read)
-
-    #    os.remove(chemkin_save_path)
+        
+        os.remove(chemkin_save_path)
 
 class TestReadReactionComments(unittest.TestCase):
     @classmethod
