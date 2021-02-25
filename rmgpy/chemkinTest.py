@@ -564,8 +564,8 @@ C 1 H 3 N 1 O 2 S 1 X 1
             if i == 4:
                 tridentate_read = line
 
-        self.assertEqual(bidentate_test, bidentate_read)
-        self.assertEqual(tridentate_test, tridentate_read)
+        self.assertEqual(bidentate_test.strip(), bidentate_read.strip())
+        self.assertEqual(tridentate_test.strip(), tridentate_read.strip())
         print(tridentate_read)
 
     #    os.remove(chemkin_save_path)
