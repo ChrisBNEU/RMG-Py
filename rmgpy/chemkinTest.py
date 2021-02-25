@@ -551,8 +551,7 @@ C 1 H 3 N 1 O 2 S 1 X 1
         chemkin_save_path = os.path.join(folder, 'surface', 'chem-surface-test.inp')
         species, reactions = load_chemkin_file(chemkin_path, dictionary_path)
 
-        element_list = species[3].molecule[0].get_element_count()
-        surface_atom_count = element_list.get('X')  
+        surface_atom_count = species[3].molecule[0].get_num_atoms('X')
         save_chemkin_surface_file(chemkin_save_path, species, reactions, verbose=False, check_for_duplicates=False)
         
         bidentate_test = "    CH2OX2(52)/2/             \n"
