@@ -557,12 +557,12 @@ C 1 H 3 N 1 O 2 S 1 X 1
         
         bidentate_test = "    CH2OX2(52)/2/             \n"
         tridentate_test = "    CHOX3(61)/3/             \n" 
-        f = open(chemkin_save_path,"r")
-        for i, line in enumerate(f):
-            if i == 3:
-               bidentate_read = line
-            if i == 4:
-                tridentate_read = line
+        with open(chemkin_save_path, "r") as f:
+            for i, line in enumerate(f):
+                if i == 3:
+                    bidentate_read = line
+                if i == 4:
+                    tridentate_read = line
 
         self.assertEqual(bidentate_test.strip(), bidentate_read.strip())
         self.assertEqual(tridentate_test.strip(), tridentate_read.strip())
