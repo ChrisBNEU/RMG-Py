@@ -2142,21 +2142,13 @@ def save_chemkin_surface_file(path, species, reactions, verbose=True, check_for_
     # todo: add surface site density from reactor simulation
     for spec in sorted_species:
         label = get_species_identifier(spec)
-        # todo: add /2/ to bidentate species etc.
-        # ChrisB: species
-        
-        element_list = spec.molecule[0].get_element_count()
-        if  element_list.get('X') >= 2:
-            surface_sites = "/" + str(element_list.get('X')) + "/"
-            if verbose:
-                f.write('    {0}{1!s:<16}    ! {2}\n'.format(label, surface_sites, str(spec)))
-            else:
-                f.write('    {0}{1!s:<16}\n'.format(label, surface_sites))
+        number_of_sites = spec.molecule[0].get_num_atoms('X')
+        if  number_of_sites >= 2:
+            label +=  f"/{number_of_sites}/"
+        if verbose:
+            f.write('    {0!s:<16}    ! {1}\n'.format(label, str(spec)))
         else:
-            if verbose:
-                f.write('    {0!s:<16}    ! {1}\n'.format(label, str(spec)))
-            else:
-                f.write('    {0!s:<16}\n'.format(label))
+            f.write('    {0!s}\n'.format(label))
     f.write('END\n\n\n\n')
 
     # Thermodynamics section
