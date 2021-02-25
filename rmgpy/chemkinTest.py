@@ -47,9 +47,6 @@ from rmgpy.transport import TransportData
 
 
 ###################################################
-from nose.plugins.attrib import attr
-def wipd(f):
-    return attr('wip')(f)
 
 class ChemkinTest(unittest.TestCase):
     @mock.patch('rmgpy.chemkin.logging')
@@ -545,10 +542,9 @@ C 1 H 3 N 1 O 2 S 1 X 1
         self.assertEqual(formula, {'X': 1, 'C': 1, 'O': 2, 'H': 3, 'N': 1, 'S': 1})
         self.assertTrue(self.nasa.is_identical_to(thermo))
     
-    @wipd
     def test_write_bidentate_species(self):
-        import linecache
         """Test that species with 2 or more surface sites get proper formatting"""
+
         folder = os.path.join(os.path.dirname(rmgpy.__file__), 'test_data/chemkin/chemkin_py')
         chemkin_path = os.path.join(folder, 'surface', 'chem-surface.inp')
         dictionary_path = os.path.join(folder, 'surface', 'species_dictionary.txt')
@@ -559,14 +555,20 @@ C 1 H 3 N 1 O 2 S 1 X 1
         surface_atom_count = element_list.get('X')  
         save_chemkin_surface_file(chemkin_save_path, species, reactions, verbose=False, check_for_duplicates=False)
         
-        line1 = "    CH2OX2(52)/2/             \n"
-        line2 = linecache.getline(chemkin_save_path, 4)
-        print(line1)
-        self.assertEqual(line1, line2)
-        # self.assertEqual(1,0)
+        bidentate_test = "    CH2OX2(52)/2/             \n"
+        tridentate_test = "    CHOX3(61)/3/             \n" 
+        f = open(chemkin_save_path,"r")
+        for i, line in enumerate(f):
+            if i == 3:
+               bidentate_read = line
+            if i == 4:
+                tridentate_read = line
 
+        self.assertEqual(bidentate_test, bidentate_read)
+        self.assertEqual(tridentate_test, tridentate_read)
+        print(tridentate_read)
 
-        # os.remove(chemkin_save_path)
+    #    os.remove(chemkin_save_path)
 
 class TestReadReactionComments(unittest.TestCase):
     @classmethod
