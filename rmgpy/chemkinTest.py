@@ -549,7 +549,7 @@ C 1 H 3 N 1 O 2 S 1 X 1
         chemkin_path = os.path.join(folder, 'surface', 'chem-surface.inp')
         dictionary_path = os.path.join(folder, 'surface', 'species_dictionary.txt')
         chemkin_save_path = os.path.join(folder, 'surface', 'chem-surface-test.inp')
-        species, reactions = load_chemkin_file(chemkin_path,dictionary_path)
+        species, reactions = load_chemkin_file(chemkin_path, dictionary_path)
 
         element_list = species[3].molecule[0].get_element_count()
         surface_atom_count = element_list.get('X')  
