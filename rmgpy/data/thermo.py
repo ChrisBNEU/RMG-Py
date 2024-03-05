@@ -1448,6 +1448,53 @@ class ThermoDatabase(object):
 
         self.binding_energies = binding_energies
 
+
+    def get_bond_order(self, species, return_bond_orders=False):
+        """
+        Returns the bond order of the adsorbate on the surface.
+        """
+        molecule = species.molecule[0]
+        surface_sites = []
+        for atom in molecule.atoms:
+            if atom.is_surface_site():
+                surface_sites.append(atom)
+        normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
+        bond_orders = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
+        max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
+        sites = []
+
+        for site in surface_sites:
+            numbonds = len(site.bonds)
+            if numbonds == 0:
+                # vanDerWaals
+                pass
+            else:
+                assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
+                bonded_atom = list(site.bonds.keys())[0]
+                sites.append(bonded_atom)
+                bond = site.bonds[bonded_atom]
+                if bond.is_single():
+                    bond_order = 1.
+                elif bond.is_double():
+                    bond_order = 2.
+                elif bond.is_triple():
+                    bond_order = 3.
+                elif bond.is_quadruple():
+                    bond_order = 4.
+                else:
+                    raise NotImplementedError("Unsupported bond order {0} for binding energy "
+                                              "correction.".format(bond.order))
+
+                normalized_bonds[bonded_atom.symbol] += bond_order / max_bond_order[bonded_atom.symbol]
+                bond_orders[bonded_atom.symbol] = bond_order
+
+        # lsrs only need the normalized bond orders. advanced lsrs need max and bond orders
+        # for calculating the alpha terms
+        if return_bond_orders:
+            return max_bond_order, bond_orders, sites
+        else:
+            return normalized_bonds
+
     def correct_binding_energy(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None):
         """
         Changes the provided thermo, by applying a linear scaling relation
@@ -1486,36 +1533,7 @@ class ThermoDatabase(object):
         if all(-0.01 < v.value_si < 0.01 for v in delta_atomic_adsorption_energy.values()):
             return thermo
 
-        molecule = species.molecule[0]
-        # only want/need to do one resonance structure
-        surface_sites = []
-        for atom in molecule.atoms:
-            if atom.is_surface_site():
-                surface_sites.append(atom)
-        normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
-        max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
-        for site in surface_sites:
-            numbonds = len(site.bonds)
-            if numbonds == 0:
-                # vanDerWaals
-                pass
-            else:
-                assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
-                bonded_atom = list(site.bonds.keys())[0]
-                bond = site.bonds[bonded_atom]
-                if bond.is_single():
-                    bond_order = 1.
-                elif bond.is_double():
-                    bond_order = 2.
-                elif bond.is_triple():
-                    bond_order = 3.
-                elif bond.is_quadruple():
-                    bond_order = 4.
-                else:
-                    raise NotImplementedError("Unsupported bond order {0} for binding energy "
-                                              "correction.".format(bond.order))
-
-                normalized_bonds[bonded_atom.symbol] += bond_order / max_bond_order[bonded_atom.symbol]
+        normalized_bonds = self.get_bond_order(species, return_bond_orders=False)
 
         if not isinstance(thermo, ThermoData):
             thermo = thermo.to_thermo_data()
@@ -1532,92 +1550,98 @@ class ThermoDatabase(object):
         return thermo
 
 
-    def correct_binding_energy_extended(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None, facet_to_scale_from=None, facet_to_scale_to=None, site=None):
-        """
-        Changes the provided thermo, by applying a linear scaling relation
-        to correct the adsorption energy.
+    # def correct_binding_energy_extended(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None, site_to_scale_from=None, site_to_scale_to=None):
+    #     """
+    #     Changes the provided thermo, by applying a linear scaling relation
+    #     to correct the adsorption energy.
 
-        :param thermo: starting thermo data
-        :param species: the species (which is an adsorbate)
-        :param metal_to_scale_from: the metal you want to scale from (string eg. 'Pt' or None)
-        :param metal_to_scale_to: the metal you want to scale to (string e.g 'Pt' or None)
-        :param facet_to_scale_from: the facet you want to scale from (string eg. '111' or None)
-        :param facet_to_scale_to: the facet you want to scale to (string e.g '111' or None)
-        :param site: the site you want to scale to (string e.g 'bridge' or None)
+    #     :param thermo: starting thermo data
+    #     :param species: the species (which is an adsorbate)
+    #     :param metal_to_scale_from: the metal you want to scale from (string eg. 'Pt' or None)
+    #     :param metal_to_scale_to: the metal you want to scale to (string e.g 'Pt' or None)
+    #     :param facet_to_scale_from: the facet you want to scale from (string eg. '111' or None)
+    #     :param facet_to_scale_to: the facet you want to scale to (string e.g '111' or None)
+    #     :param site: the site you want to scale to (string e.g 'bridge' or None)
 
-        :return: corrected thermo
-        """
+    #     :return: corrected thermo
+    #     """
 
-        if metal_to_scale_from == metal_to_scale_to:
-            return thermo
+    #     # facet must be the same
+    #     if metal_to_scale_from == metal_to_scale_to & site_to_scale_from == site_to_scale_to:
+    #         return thermo
 
-        if metal_to_scale_to is None:
-            metal_to_scale_to_binding_energies = self.binding_energies
-        else:
-            metal_to_scale_to_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_to)
+    #     if metal_to_scale_to is None:
+    #         metal_to_scale_to_binding_energies = self.binding_energies
+    #     else:
+    #         metal_to_scale_to_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_to)
 
-        if metal_to_scale_from is None:
-            metal_to_scale_from_binding_energies = self.binding_energies
-        else:
-            metal_to_scale_from_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_from)
 
-        delta_atomic_adsorption_energy = {
-            'C': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-            'H': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-            'O': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-            'N': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-        }
+    #     if metal_to_scale_from is None:
+    #         metal_to_scale_from_binding_energies = self.binding_energies
+    #     else:
+    #         metal_to_scale_from_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_from)
 
-        for element, delta_energy in delta_atomic_adsorption_energy.items():
-            delta_energy.value_si = metal_to_scale_to_binding_energies[element].value_si - metal_to_scale_from_binding_energies[element].value_si
+    #     if site_to_scale_to is None:
+            
+            
 
-        if all(-0.01 < v.value_si < 0.01 for v in delta_atomic_adsorption_energy.values()):
-            return thermo
+    #     delta_atomic_adsorption_energy = {
+    #         'C': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
+    #         'H': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
+    #         'O': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
+    #         'N': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
+    #     }
 
-        molecule = species.molecule[0]
-        # only want/need to do one resonance structure
-        surface_sites = []
-        for atom in molecule.atoms:
-            if atom.is_surface_site():
-                surface_sites.append(atom)
-        normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
-        max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
-        for site in surface_sites:
-            numbonds = len(site.bonds)
-            if numbonds == 0:
-                # vanDerWaals
-                pass
-            else:
-                assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
-                bonded_atom = list(site.bonds.keys())[0]
-                bond = site.bonds[bonded_atom]
-                if bond.is_single():
-                    bond_order = 1.
-                elif bond.is_double():
-                    bond_order = 2.
-                elif bond.is_triple():
-                    bond_order = 3.
-                elif bond.is_quadruple():
-                    bond_order = 4.
-                else:
-                    raise NotImplementedError("Unsupported bond order {0} for binding energy "
-                                              "correction.".format(bond.order))
+    #     for element, delta_energy in delta_atomic_adsorption_energy.items():
+    #         delta_energy.value_si = metal_to_scale_to_binding_energies[element].value_si - metal_to_scale_from_binding_energies[element].value_si
 
-                normalized_bonds[bonded_atom.symbol] += bond_order / max_bond_order[bonded_atom.symbol]
+    #     if all(-0.01 < v.value_si < 0.01 for v in delta_atomic_adsorption_energy.values()):
+    #         return thermo
 
-        if not isinstance(thermo, ThermoData):
-            thermo = thermo.to_thermo_data()
-            find_cp0_and_cpinf(species, thermo)
+    #     molecule = species.molecule[0]
+    #     # only want/need to do one resonance structure
+    #     surface_sites = []
+    #     for atom in molecule.atoms:
+    #         if atom.is_surface_site():
+    #             surface_sites.append(atom)
+    #     normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
+    #     max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
+    #     for site in surface_sites:
+    #         numbonds = len(site.bonds)
+    #         if numbonds == 0:
+    #             # vanDerWaals
+    #             pass
+    #         else:
+    #             assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
+    #             bonded_atom = list(site.bonds.keys())[0]
+    #             bond = site.bonds[bonded_atom]
+    #             if bond.is_single():
+    #                 bond_order = 1.
+    #             elif bond.is_double():
+    #                 bond_order = 2.
+    #             elif bond.is_triple():
+    #                 bond_order = 3.
+    #             elif bond.is_quadruple():
+    #                 bond_order = 4.
+    #             else:
+    #                 raise NotImplementedError("Unsupported bond order {0} for binding energy "
+    #                                           "correction.".format(bond.order))
 
-        # now edit the adsorptionThermo using LSR
-        comments = []
-        for element in 'CHON':
-            if normalized_bonds[element]:
-                change_in_binding_energy = delta_atomic_adsorption_energy[element].value_si * normalized_bonds[element]
-                thermo.H298.value_si += change_in_binding_energy
-                comments.append(f'{normalized_bonds[element]:.2f}{element}')
-        thermo.comment += " Binding energy corrected by LSR ({}) from {}".format('+'.join(comments), metal_to_scale_from)
-        return thermo
+    #             normalized_bonds[bonded_atom.symbol] += bond_order / max_bond_order[bonded_atom.symbol]
+
+    #     if not isinstance(thermo, ThermoData):
+    #         thermo = thermo.to_thermo_data()
+    #         find_cp0_and_cpinf(species, thermo)
+
+    #     # now edit the adsorptionThermo using LSR
+    #     comments = []
+    #     for element in 'CHON':
+    #         if normalized_bonds[element]:
+    #             change_in_binding_energy = delta_atomic_adsorption_energy[element].value_si * normalized_bonds[element]
+    #             thermo.H298.value_si += change_in_binding_energy
+    #             comments.append(f'{normalized_bonds[element]:.2f}{element}')
+    #     thermo.comment += " Binding energy corrected by LSR ({}) from {}".format('+'.join(comments), metal_to_scale_from)
+    #     return thermo
 
     def get_thermo_data_for_surface_species(self, species):
         """

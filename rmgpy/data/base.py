@@ -78,6 +78,11 @@ class Entry(object):
     `site`                 Which surface site the molecule prefers (``None`` if not used)
     `binding_energies`     The surface binding energies for C,H,O, and N
     `surface_site_density` The surface site density
+    `valence_electrons`    The number of valence electrons
+    `electronegativity`    The electronegativity
+    `psi`                  psi parameter in advanced lsr model
+    `beta`                 beta parameter in advanced lsr model
+    `coordination_number`  The generalized coordination number
     ====================== ========================================================
     """
 
@@ -100,6 +105,11 @@ class Entry(object):
                  site=None,
                  binding_energies=None,
                  surface_site_density=None,
+                 valence_electrons=None,
+                 electronegativity=None,
+                 psi=None,
+                 beta=None,
+                 coordination_number=None
                  ):
         self.index = index
         self.label = label
@@ -119,6 +129,11 @@ class Entry(object):
         self.site = site
         self.binding_energies = binding_energies
         self.surface_site_density = surface_site_density
+        self.valence_electrons = valence_electrons
+        self.electronegativity = electronegativity
+        self.psi = psi
+        self.beta = beta
+        self.coordination_number = coordination_number
 
     def __str__(self):
         return self.label
@@ -199,6 +214,11 @@ class Database(object):
         self.metal = metal
         self.site = site
         self.facet = facet
+        self.valence_electrons = None
+        self.electronegativity = None
+        self.psi = None
+        self.beta = None
+        self.coordination_number = None
 
     def load(self, path, local_context=None, global_context=None):
         """
@@ -231,6 +251,12 @@ class Database(object):
         local_context['metal'] = self.metal
         local_context['site'] = self.site
         local_context['facet'] = self.facet
+        local_context['valence_electrons'] = self.valence_electrons
+        local_context['electronegativity'] = self.electronegativity
+        local_context['psi'] = self.psi
+        local_context['beta'] = self.beta
+        local_context['coordination_number'] = self.coordination_number
+
         # add in anything from the Class level dictionary.
         for key, value in Database.local_context.items():
             local_context[key] = value
@@ -252,6 +278,11 @@ class Database(object):
         self.metal = local_context['metal']
         self.site = local_context['site']
         self.facet = local_context['facet']
+        self.valence_electrons = local_context['valence_electrons']
+        self.electronegativity = local_context['electronegativity']
+        self.psi = local_context['psi']
+        self.beta = local_context['beta']
+        self.coordination_number = local_context['coordination_number']
 
         # Return the loaded database (to allow for Database().load() syntax)
         return self

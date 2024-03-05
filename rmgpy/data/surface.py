@@ -173,6 +173,234 @@ class MetalLibrary(Database):
 
         return matches
 
+class MetalPropertyLibrary(Database):
+    """
+    A class for working with a RMG metal library.
+    """
+
+    def __init__(self, label='', name='', short_desc='', long_desc=''):
+        Database.__init__(self, label=label, name=name, short_desc=short_desc, long_desc=long_desc)
+
+    def load_entry(self,
+                   index,
+                   label,
+                   metal='',
+                   valence_electrons=None,
+                   electronegativity=None,
+                   psi=None,
+                   beta=None,
+                   shortDesc='',
+                   longDesc='',
+                   ):
+        """
+        Method for parsing entries in database files.
+        Note that these argument names are retained for backward compatibility.
+        """
+        if valence_electrons:
+            valence_electrons = int(valence_electrons)
+        else:
+            valence_electrons = None
+        
+        if electronegativity:
+            electronegativity = float(electronegativity)
+        else:
+            electronegativity = None
+
+        if psi:
+            psi = float(psi)
+        else:
+            psi = None
+
+        if beta:
+            beta = float(beta)
+        else:
+            beta = None
+
+        self.entries[label] = Entry(
+            index=index,
+            label=label,
+            metal=metal,
+            valence_electrons=valence_electrons,
+            electronegativity=electronegativity,
+            psi=psi,
+            beta=beta,
+            short_desc=shortDesc,
+            long_desc=longDesc.strip(),
+        )
+        
+
+    def load(self, path):
+        """
+        Load the metal library from the given path
+        """
+        Database.load(self, path, local_context={}, global_context={})
+
+    def save_entry(self, path, entry):
+        """
+        Write the given `entry` in the metal database to the file object `f`.
+        """
+        return save_entry(path, entry)
+
+    def get_valence_electrons(self, label):
+        """
+        Get a metal's valence electrons from its label.
+
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            valence_electrons = self.entries[label].valence_electrons
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in metal property database. \
+            use the abbreviated element name (ex. Pt).')
+        if valence_electrons is None:
+            raise DatabaseError(f'Metal {label!r} has no valence electrons in metal properties database.')
+        return valence_electrons
+    
+    def get_electronegativity(self, label):
+        """
+        Get a metal's electronegativity from its label.
+
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            electronegativity = self.entries[label].electronegativity
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in metal property database. \
+            use the abbreviated element name (ex. Pt).')
+        if electronegativity is None:
+            raise DatabaseError(f'Metal {label!r} has no electronegativity in metal properties database.')
+        return electronegativity
+    
+    def get_psi(self, label):
+        """
+        Get a metal's psi from its label.
+
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            psi = self.entries[label].psi
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in metal property database. \
+            use the abbreviated element name (ex. Pt).')
+        if psi is None:
+            raise DatabaseError(f'Metal {label!r} has no psi in metal properties database.')
+        return psi
+    
+    def get_beta(self, label):
+        """
+        Get a metal's beta from its label.
+
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            beta = self.entries[label].beta
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in metal property database. \
+            use the abbreviated element name (ex. Pt).')
+        if beta is None:
+            raise DatabaseError(f'Metal {label!r} has no beta in metal properties database.')
+        return beta
+    
+
+class SitePropertyLibrary(Database):
+    """
+    A class for working with a RMG site properties
+    """
+
+    def __init__(self, label='', name='', short_desc='', long_desc=''):
+        Database.__init__(self, label=label, name=name, short_desc=short_desc, long_desc=long_desc)
+
+    def load_entry(self,
+                   index,
+                   label,
+                   metal='',
+                   facet='',
+                   site='',
+                   coordination_number=None,
+                   shortDesc='',
+                   longDesc='',
+                   ):
+        """
+        Method for parsing entries in database files.
+        Note that these argument names are retained for backward compatibility.
+        """
+        if coordination_number:
+            coordination_number = float(coordination_number)
+        else:
+            coordination_number = None
+
+        self.entries[label] = Entry(
+            index=index,
+            label=label,
+            metal=metal,
+            facet=facet,
+            site=site,
+            coordination_number=coordination_number,
+            short_desc=shortDesc,
+            long_desc=longDesc.strip(),
+        )
+
+    def load(self, path):
+        """
+        Load the metal library from the given path
+        """
+        Database.load(self, path, local_context={}, global_context={})
+
+    def save_entry(self, path, entry):
+        """
+        Write the given `entry` in the metal database to the file object `f`.
+        """
+        return save_entry(path, entry)
+    
+
+    def get_coordination_number(self, label):
+        """
+        Get a metal's coordination number from its label.
+
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            coordination_number = self.entries[label].coordination_number
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in site property database. \
+            Labels should be formatted MetalFacet (ex. Pt111).')
+        if coordination_number is None:
+            raise DatabaseError(f'Metal {label!r} has no coordination number in site property database.')
+        return coordination_number
+    
+
+    def get_all_entries_on_facet(self, facet_name):
+        """
+        Get all the sites for a specific facet 
+
+        Raises DatabaseError (rather than an empty list) if none can be found.
+        """
+        matches = []
+        for label, entry in self.entries.items():
+            if entry.facet == facet_name:
+                matches.append(label)
+
+        if len(matches) == 0:
+            raise DatabaseError(f'Metal {facet_name!r} not found in database.')
+
+        return matches
+    
+    def get_all_coordination_numbers_on_facet(self, facet_name):
+        """
+        Get all the sites for a specific facet 
+
+        Raises DatabaseError (rather than an empty list) if none can be found.
+        """
+        matches = {}
+        for label, entry in self.entries.items():
+            if entry.facet == facet_name:
+                matches[label] = entry.coordination_number
+
+        if len(matches) == 0:
+            raise DatabaseError(f'Metal {facet_name!r} not found in database.')
+
+        return matches
+
 
 ################################################################################
 
@@ -289,6 +517,186 @@ class MetalDatabase(object):
         if not os.path.exists(path):
             os.mkdir(path)
         self.save_libraries(os.path.join(path, 'libraries/metal.py'))
+
+    def save_libraries(self, path):
+        """
+        Save the metal libraries to the given `path` on disk, where `path`
+        points to the top-level folder of the metal libraries.
+        """
+        if not os.path.exists(path):
+            os.mkdir(path)
+        for library in self.libraries.keys():
+            self.libraries[library].save(path)
+
+class MetalPropertyDatabase(object):
+    """
+    A class for working with the RMG metal property database.
+    """
+
+    def __init__(self):
+        self.libraries = {}
+        self.libraries['surface'] = MetalPropertyLibrary()
+        self.groups = {}
+        self.local_context = {}
+        self.global_context = {}
+
+    def __reduce__(self):
+        """
+        A helper function used when pickling a MetalDatabase object.
+        """
+        d = {
+            'libraries': self.libraries,
+        }
+        return (MetalPropertyDatabase, (), d)
+
+    def __setstate__(self, d):
+        """
+        A helper function used when unpickling a MetalDatabase object.
+        """
+        self.libraries = d['libraries']
+
+    def load(self, path, libraries=None, depository=True):
+        """
+        Load the metal database from the given `path` on disk, where `path`
+        points to the top-level folder of the surface database.
+        
+        Load the metal library
+        """
+        self.libraries['surface'].load(os.path.join(path, 'libraries', 'metal_properties.py'))
+
+    def get_valence_electrons(self, metal_label):
+        """
+        Get a metal's valence electrons from its label
+        """
+        return self.libraries['surface'].get_valence_electrons(metal_label)
+    
+    def get_electronegativity(self, metal_label):
+        """
+        Get a metal's electronegativity from its label
+        """
+        return self.libraries['surface'].get_electronegativity(metal_label)
+    
+    def get_psi(self, metal_label):
+        """
+        Get a metal's psi from its label
+        """
+        return self.libraries['surface'].get_psi(metal_label)
+    
+    def get_beta(self, metal_label):
+        """
+        Get a metal's beta from its label
+        """
+        return self.libraries['surface'].get_beta(metal_label)
+
+    def add_entry(self, entry):
+        """
+        Add an entry to a metal library
+        """
+        self.libraries['surface'].entries[f'{entry.label}'] = entry
+
+    def remove_entry(self, entry):
+        """
+        Remove an entry from a metal library
+        """
+        self.libraries['surface'].entries.pop(f'{entry.label}')
+
+    def save(self, path):
+        """
+        Save the metal database to the given `path` on disk, where `path`
+        points to the top-level folder of the metal database.
+        """
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            os.mkdir(path)
+        self.save_libraries(os.path.join(path, 'libraries/metal_properties.py'))
+
+    def save_libraries(self, path):
+        """
+        Save the metal libraries to the given `path` on disk, where `path`
+        points to the top-level folder of the metal libraries.
+        """
+        if not os.path.exists(path):
+            os.mkdir(path)
+        for library in self.libraries.keys():
+            self.libraries[library].save(path)
+
+class SitePropertyDatabase(object):
+    """
+    A class for working with the RMG metal property database.
+    """
+
+    def __init__(self):
+        self.libraries = {}
+        self.libraries['surface'] = SitePropertyLibrary()
+        self.groups = {}
+        self.local_context = {}
+        self.global_context = {}
+
+    def __reduce__(self):
+        """
+        A helper function used when pickling a MetalDatabase object.
+        """
+        d = {
+            'libraries': self.libraries,
+        }
+        return (SitePropertyDatabase, (), d)
+
+    def __setstate__(self, d):
+        """
+        A helper function used when unpickling a MetalDatabase object.
+        """
+        self.libraries = d['libraries']
+
+    def load(self, path, libraries=None, depository=True):
+        """
+        Load the metal database from the given `path` on disk, where `path`
+        points to the top-level folder of the surface database.
+        
+        Load the metal library
+        """
+        self.libraries['surface'].load(os.path.join(path, 'libraries', 'site_properties.py'))
+
+    def get_coordination_number(self, metal_label):
+        """
+        Get a metal's coordination number from its label
+        """
+        return self.libraries['surface'].get_coordination_number(metal_label)
+    
+    def get_all_entries_on_facet(self, facet):
+        """
+        Get all coordination number entries from the database that are on a set facet,
+        returning the labels.
+        """
+        return self.libraries['surface'].get_all_entries_on_facet(facet)
+    
+    def get_all_coordination_numbers_on_facet(self, facet):
+        """
+        Get all coordination number entries from the database that are on a set facet,
+        returning the labels.
+        """
+        return self.libraries['surface'].get_all_coordination_numbers_on_facet(facet)
+
+    def add_entry(self, entry):
+        """
+        Add an entry to a metal library
+        """
+        self.libraries['surface'].entries[f'{entry.label}'] = entry
+
+    def remove_entry(self, entry):
+        """
+        Remove an entry from a metal library
+        """
+        self.libraries['surface'].entries.pop(f'{entry.label}')
+
+    def save(self, path):
+        """
+        Save the metal database to the given `path` on disk, where `path`
+        points to the top-level folder of the metal database.
+        """
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            os.mkdir(path)
+        self.save_libraries(os.path.join(path, 'libraries/metal_properties.py'))
 
     def save_libraries(self, path):
         """
