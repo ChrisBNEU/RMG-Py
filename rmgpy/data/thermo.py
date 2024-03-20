@@ -1268,6 +1268,7 @@ class ThermoDatabase(object):
                 raise RuntimeError("thermo0 should be a tuple (thermo_data, library, entry), not {0}".format(thermo0))
             entry = thermo0[2]
             thermo0 = thermo0[0]
+            site0 = entry.site
 
             if species.contains_surface_site():
                 if entry.metal is not None:
