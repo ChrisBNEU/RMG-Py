@@ -1462,7 +1462,7 @@ class ThermoDatabase(object):
         normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
         bond_orders = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
         max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
-        sites = []
+        bound_atoms = []
 
         for site in surface_sites:
             numbonds = len(site.bonds)
@@ -1472,7 +1472,7 @@ class ThermoDatabase(object):
             else:
                 assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
                 bonded_atom = list(site.bonds.keys())[0]
-                sites.append(bonded_atom)
+                bound_atoms.append(bonded_atom)
                 bond = site.bonds[bonded_atom]
                 if bond.is_single():
                     bond_order = 1.
@@ -1492,7 +1492,7 @@ class ThermoDatabase(object):
         # lsrs only need the normalized bond orders. advanced lsrs need max and bond orders
         # for calculating the alpha terms
         if return_bond_orders:
-            return max_bond_order, bond_orders, sites
+            return max_bond_order, bond_orders, bound_atoms
         else:
             return normalized_bonds
 

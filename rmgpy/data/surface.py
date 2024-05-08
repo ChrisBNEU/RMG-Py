@@ -317,6 +317,7 @@ class SitePropertyLibrary(Database):
                    facet='',
                    site='',
                    coordination_number=None,
+                   metal_atoms=None,
                    shortDesc='',
                    longDesc='',
                    ):
@@ -329,6 +330,11 @@ class SitePropertyLibrary(Database):
         else:
             coordination_number = None
 
+        if metal_atoms:
+            metal_atoms = int(metal_atoms)
+        else:
+            metal_atoms = None
+
         self.entries[label] = Entry(
             index=index,
             label=label,
@@ -336,6 +342,7 @@ class SitePropertyLibrary(Database):
             facet=facet,
             site=site,
             coordination_number=coordination_number,
+            metal_atoms=metal_atoms,
             short_desc=shortDesc,
             long_desc=longDesc.strip(),
         )
@@ -368,7 +375,21 @@ class SitePropertyLibrary(Database):
             raise DatabaseError(f'Metal {label!r} has no coordination number in site property database.')
         return coordination_number
     
+    def get_metal_atoms(self, label):
+        """
+        Get a metal's metal atoms from its label.
 
+        Raises DatabaseError (rather than returning None) if it can't be found.
+        """
+        try:
+            metal_atoms = self.entries[label].metal_atoms
+        except KeyError:
+            raise DatabaseError(f'Metal {label!r} not found in site property database. \
+            Labels should be formatted MetalFacet (ex. Pt111).')
+        if metal_atoms is None:
+            raise DatabaseError(f'Metal {label!r} has no metal atoms in site property database.')
+        return metal_atoms
+    
     def get_all_entries_on_facet(self, facet_name):
         """
         Get all the sites for a specific facet 
@@ -661,6 +682,12 @@ class SitePropertyDatabase(object):
         Get a metal's coordination number from its label
         """
         return self.libraries['surface'].get_coordination_number(metal_label)
+    
+    def get_metal_atoms(self, metal_label):
+        """
+        Get a metal's metal atoms from its label
+        """
+        return self.libraries['surface'].get_metal_atoms(metal_label)
     
     def get_all_entries_on_facet(self, facet):
         """

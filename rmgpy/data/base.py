@@ -83,6 +83,7 @@ class Entry(object):
     `psi`                  psi parameter in advanced lsr model
     `beta`                 beta parameter in advanced lsr model
     `coordination_number`  The generalized coordination number
+    `metal_atoms`          The number of metal atoms in the site for metal databases
     ====================== ========================================================
     """
 
@@ -109,7 +110,8 @@ class Entry(object):
                  electronegativity=None,
                  psi=None,
                  beta=None,
-                 coordination_number=None
+                 coordination_number=None,
+                 metal_atoms=None,
                  ):
         self.index = index
         self.label = label
@@ -134,6 +136,7 @@ class Entry(object):
         self.psi = psi
         self.beta = beta
         self.coordination_number = coordination_number
+        self.metal_atoms = metal_atoms
 
     def __str__(self):
         return self.label
@@ -219,6 +222,7 @@ class Database(object):
         self.psi = None
         self.beta = None
         self.coordination_number = None
+        self.metal_atoms = None
 
     def load(self, path, local_context=None, global_context=None):
         """
@@ -256,6 +260,7 @@ class Database(object):
         local_context['psi'] = self.psi
         local_context['beta'] = self.beta
         local_context['coordination_number'] = self.coordination_number
+        local_context['metal_atoms'] = self.metal_atoms
 
         # add in anything from the Class level dictionary.
         for key, value in Database.local_context.items():
@@ -283,6 +288,7 @@ class Database(object):
         self.psi = local_context['psi']
         self.beta = local_context['beta']
         self.coordination_number = local_context['coordination_number']
+        self.metal_atoms = local_context['metal_atoms']
 
         # Return the loaded database (to allow for Database().load() syntax)
         return self
