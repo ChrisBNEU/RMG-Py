@@ -1562,98 +1562,165 @@ class ThermoDatabase(object):
         return thermo
 
 
-    # def correct_binding_energy_extended(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None, site_to_scale_from=None, site_to_scale_to=None):
-    #     """
-    #     Changes the provided thermo, by applying a linear scaling relation
-    #     to correct the adsorption energy.
+    def get_adatom_site(self, species, metal_atoms, cn_nums):
+        """
+        gets the adatoms, bond orders, and sites for a given species
 
-    #     :param thermo: starting thermo data
-    #     :param species: the species (which is an adsorbate)
-    #     :param metal_to_scale_from: the metal you want to scale from (string eg. 'Pt' or None)
-    #     :param metal_to_scale_to: the metal you want to scale to (string e.g 'Pt' or None)
-    #     :param facet_to_scale_from: the facet you want to scale from (string eg. '111' or None)
-    #     :param facet_to_scale_to: the facet you want to scale to (string e.g '111' or None)
-    #     :param site: the site you want to scale to (string e.g 'bridge' or None)
+        :param species: the adsorbate species
+        :param metal_atoms: the number of metal atoms available on the surface
+        :param cn_nums: the coordination numbers for the different sites on the surface
+        :return: a list of tuples with the bound atom, site, bond order, and max bond order
+        """
+        sites = []
+        max_bond_orders = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
+        
+        for atom in species.molecule[0].atoms: 
+            if atom.is_surface_site():
+                # vdw check
+                if len(atom.bonds) == 0:
+                    return None
+                
+                else:
+                    bound_atom = list(atom.bonds.keys())[0]
+                    bonds = list(atom.bonds.values())[0].get_order_num()
+                    max_bond_order = max_bond_orders[bound_atom.symbol]
 
-    #     :return: corrected thermo
-    #     """
+                    if bound_atom.symbol == 'C':
+                        pref_site = bonds
+                        # check for OH, can have 5 bonds to C
+                        for atom, bond in bound_atom.bonds.items():
+                            if atom.is_oxygen() and bond.is_single():
+                                max_bond_order = 5.
 
-    #     # facet must be the same
-    #     if metal_to_scale_from == metal_to_scale_to & site_to_scale_from == site_to_scale_to:
-    #         return thermo
+                    if len(atom.site) > 0:
+                        site = atom.site
 
-    #     if metal_to_scale_to is None:
-    #         metal_to_scale_to_binding_energies = self.binding_energies
-    #     else:
-    #         metal_to_scale_to_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_to)
+                    # if no site is specified, look at bond order and try to match 
+                    else:
+                        # get max metal atoms available for the facet (e.g. 111 = 3 for hollow site) 
+                        max_ma = max(metal_atoms.values())
 
+                        if bound_atom.symbol == 'C':
+                            pref_site = bonds
+                        elif bound_atom.symbol == 'O': 
+                            pref_site = bonds + 1
+                        elif bound_atom.symbol == 'N': 
+                            pref_site = bonds + 1
+                        elif bound_atom.symbol == 'H':
+                            pref_site = 1
 
-    #     if metal_to_scale_from is None:
-    #         metal_to_scale_from_binding_energies = self.binding_energies
-    #     else:
-    #         metal_to_scale_from_binding_energies = self.surface['metal'].find_binding_energies(metal_to_scale_from)
+                        # if the preference is higher than the largest num of metal atoms, 
+                        # then just go to the site with most available metal atoms
+                        # print(pref_site, max_site)
+                        if pref_site > max_ma:
+                            pref_site = max_ma
 
-    #     if site_to_scale_to is None:
+                        # get all possible sites on the surface
+                        poss_sites = []
+                        for poss_site, ma_num in metal_atoms.items():
+                            if pref_site == ma_num: 
+                                poss_sites.append(poss_site)
+                        print("poss_sites ", poss_sites)
+
+                        # if multiple suitable sites are found, use one with lowest coordination number 
+                        if len(poss_sites) == 1:
+                            site = poss_sites[0]
+
+                        if len(poss_sites) > 1:
+                            ma_site = [k for k, v in metal_atoms.items() if v == pref_site]
+
+                            # get the coordination numbers corresponding to the max ma sites
+                            cns_ma = {k:coords_111[k] for k in ma_site}
+                            site = min(cns_max_ma, key=cns_max_ma.get)
+
+                        # no sites found, see if it is larger than max sites. 
+                        elif len(poss_sites) == 0: 
+                            raise ValueError(f"no site could be found for bound atom {bound_atom.symbol} in species {species.label}")
+                            
+                        
+                    print(f"preferred site for {bound_atom.symbol} is {site} with {pref_site} metal atoms")
+        
+                sites.append((bound_atom.symbol, site, bonds, max_bond_order))
+
+        return sites
+
+    def correct_binding_energies_extended(self, thermo, species, metal_to_scale_from=None,
+                                        metal_to_scale_to=None, facet_to_scale_from=None, facet_to_scale_to=None):
+        """
+        Uses the binding energy correction proposed by gao, which allows for scaling
+        from one metal and facet (e.g. Pt111) to a completely different metal and 
+        facet (e.g. Cu111). 
+        
+        :param thermo: the thermo data to correct
+        :param species: the species to correct
+        :param metal_to_scale_from: the metal to scale from (e.g. Pt)
+        :param metal_to_scale_to: the metal to scale to (e.g. Cu)
+        :param facet_to_scale_from: the facet to scale from (e.g. 111)
+        :param facet_to_scale_to: the facet to scale to (e.g. 111)
+        :return: the corrected thermo data
+
+        """
+        
+        if metal_to_scale_from == metal_to_scale_to and facet_to_scale_from == facet_to_scale_to:
+            return thermo
+        elif metal_to_scale_from is None or metal_to_scale_to is None or facet_to_scale_from is None or facet_to_scale_to is None:
+            raise ValueError("If you are scaling, you must specify both the metal and the facet to scale from and to.")
+
+        # get the required attributes for every facet and metal involved
+        cn1_dict = self.surface['site_properties'].get_all_coordination_numbers_on_facet(facet_to_scale_from)
+        cn2_dict = self.surface['site_properties'].get_all_coordination_numbers_on_facet(facet_to_scale_to)
+        
+        ma1_dict = self.surface['site_properties'].get_all_metal_atoms_on_facet(facet_to_scale_from)
+        ma2_dict = self.surface['site_properties'].get_all_metal_atoms_on_facet(facet_to_scale_to)
+        
+        psi1 = self.surface['metal_properties'].get_psi(metal_to_scale_from)
+        psi2 = self.surface['metal_properties'].get_psi(metal_to_scale_to)
+        
+        # determine the preferred sites for the species on each surface
+        surf1_sites = self.get_adatom_site(species,ma1_dict,cn1_dict)
+        surf2_sites = self.get_adatom_site(species,ma2_dict,cn2_dict)
+        
+        # check for non_surface_species or vdw
+        if not surf1_sites or len(surf1_sites) == 0: 
+            print(f"species {species.label} has no sites")
+            print(thermo.H298.value_si/9.68e4)
+            return thermo
+        
+        # print for logging
+        metal1_str = f"{metal_to_scale_from}({facet_to_scale_from})"
+        metal2_str = f"{metal_to_scale_to}({facet_to_scale_to})"
+        print(f"scaling species {species.label} on {metal1_str} at site(s) {surf1_sites} to {metal2_str} at site(s) {surf2_sites}")
+                
+        theta = 0
+        E_ads_new = 0
+
+        # 1. get theta with known values
+        comments = []
+        for bound_atom, site, X, X_m in surf1_sites: 
+            cn = cn1_dict[site]
+            E_ad = (thermo.H298.value_si)/9.68e4
             
-            
+            # for multidentates, we will use the same strategy as lsrs. calculate 
+            # the theta additively for each site
+            theta += E_ad-0.1*(X_m-X)/(X_m+1)*psi1-0.2*(X+1)/(X_m+1)*cn
+            comments.append(f"{bound_atom} on {metal1_str} at {site} order={X/X_m:.2f}")
 
-    #     delta_atomic_adsorption_energy = {
-    #         'C': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-    #         'H': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-    #         'O': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-    #         'N': rmgpy.quantity.Energy(0.0, 'eV/molecule'),
-    #     }
+        # 2. get new adsorption energy
+        for bound_atom, site, X, X_m in surf2_sites: 
+            cn = cn2_dict[site]
 
-    #     for element, delta_energy in delta_atomic_adsorption_energy.items():
-    #         delta_energy.value_si = metal_to_scale_to_binding_energies[element].value_si - metal_to_scale_from_binding_energies[element].value_si
+            E_ads_new += 0.1*(X_m-X)/(X_m+1)*psi2+0.2*(X+1)/(X_m+1)*cn + theta
+            comments.append(f"{bound_atom} on {metal2_str} at {site} order={X/X_m:.2f}")
+        
+        thermo.comment += " Binding energy corrected by Gao relations ({})".format(', '.join(comments))
 
-    #     if all(-0.01 < v.value_si < 0.01 for v in delta_atomic_adsorption_energy.values()):
-    #         return thermo
+        # update the species metal and facet
 
-    #     molecule = species.molecule[0]
-    #     # only want/need to do one resonance structure
-    #     surface_sites = []
-    #     for atom in molecule.atoms:
-    #         if atom.is_surface_site():
-    #             surface_sites.append(atom)
-    #     normalized_bonds = {'C': 0., 'O': 0., 'N': 0., 'H': 0.}
-    #     max_bond_order = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
-    #     for site in surface_sites:
-    #         numbonds = len(site.bonds)
-    #         if numbonds == 0:
-    #             # vanDerWaals
-    #             pass
-    #         else:
-    #             assert len(site.bonds) == 1, "Each surface site can only be bonded to 1 atom"
-    #             bonded_atom = list(site.bonds.keys())[0]
-    #             bond = site.bonds[bonded_atom]
-    #             if bond.is_single():
-    #                 bond_order = 1.
-    #             elif bond.is_double():
-    #                 bond_order = 2.
-    #             elif bond.is_triple():
-    #                 bond_order = 3.
-    #             elif bond.is_quadruple():
-    #                 bond_order = 4.
-    #             else:
-    #                 raise NotImplementedError("Unsupported bond order {0} for binding energy "
-    #                                           "correction.".format(bond.order))
+        # adjust the H298
+        thermo.H298.value_si = E_ads_new*9.68e4
+        print(f"scaling species {species.label} to {E_ads_new} with theta {theta}")
 
-    #             normalized_bonds[bonded_atom.symbol] += bond_order / max_bond_order[bonded_atom.symbol]
-
-    #     if not isinstance(thermo, ThermoData):
-    #         thermo = thermo.to_thermo_data()
-    #         find_cp0_and_cpinf(species, thermo)
-
-    #     # now edit the adsorptionThermo using LSR
-    #     comments = []
-    #     for element in 'CHON':
-    #         if normalized_bonds[element]:
-    #             change_in_binding_energy = delta_atomic_adsorption_energy[element].value_si * normalized_bonds[element]
-    #             thermo.H298.value_si += change_in_binding_energy
-    #             comments.append(f'{normalized_bonds[element]:.2f}{element}')
-    #     thermo.comment += " Binding energy corrected by LSR ({}) from {}".format('+'.join(comments), metal_to_scale_from)
-    #     return thermo
+        return thermo
 
     def get_thermo_data_for_surface_species(self, species):
         """
