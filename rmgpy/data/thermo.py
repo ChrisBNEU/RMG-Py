@@ -51,7 +51,7 @@ from rmgpy.thermo import NASAPolynomial, NASA, ThermoData, Wilhoit
 from rmgpy.data.surface import MetalDatabase
 from rmgpy import settings
 from rmgpy.molecule.fragment import Fragment
-from rmgpy.data.surface import MetalDatabase
+from rmgpy.data.surface import MetalDatabase, SitePropertyDatabase, MetalPropertyDatabase
 from rmgpy import settings
 
 #: This dictionary is used to add multiplicity to species label
@@ -970,8 +970,16 @@ class ThermoDatabase(object):
         MetalDB = MetalDatabase()
         MetalDB.load(os.path.join(settings['database.directory'], 'surface'))
 
+        SitePropertyDB = SitePropertyDatabase()
+        SitePropertyDB.load(os.path.join(settings['database.directory'], 'surface'))
+
+        MetalPropertyDB = MetalPropertyDatabase()
+        MetalPropertyDB.load(os.path.join(settings['database.directory'], 'surface'))
+
         self.surface = {
-            'metal': MetalDB
+            'metal': MetalDB,
+            'site_properties': SitePropertyDB,
+            'metal_properties': MetalPropertyDB,
         }
 
     def load_groups(self, path):
