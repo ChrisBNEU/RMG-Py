@@ -422,6 +422,22 @@ class SitePropertyLibrary(Database):
 
         return matches
 
+    def get_all_metal_atoms_on_facet(self, facet_name):
+        """
+        Get all the sites for a specific facet 
+
+        Raises DatabaseError (rather than an empty list) if none can be found.
+        """
+        matches = {}
+        for label, entry in self.entries.items():
+            if entry.facet == facet_name:
+                matches[label] = entry.metal_atoms
+
+        if len(matches) == 0:
+            raise DatabaseError(f'Metal {facet_name!r} not found in database.')
+
+        return matches
+
 
 ################################################################################
 
@@ -702,6 +718,12 @@ class SitePropertyDatabase(object):
         returning the labels.
         """
         return self.libraries['surface'].get_all_coordination_numbers_on_facet(facet)
+
+    def get_all_metal_atoms_on_facet(self, metal_label):
+        """
+        Get a metal's metal atoms from its label
+        """
+        return self.libraries['surface'].get_all_metal_atoms_on_facet(metal_label)
 
     def add_entry(self, entry):
         """
