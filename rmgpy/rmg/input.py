@@ -105,53 +105,66 @@ def database(
 def catalyst_properties(bindingEnergies=None,
                         surfaceSiteDensity=None,
                         metal=None,
-                        coverageDependence=False):
+                        coverageDependence=False,
+                        scalingMethod='Linear',
+):
     """
     Specify the properties of the catalyst.
     Binding energies of C,H,O,N atoms, and the surface site density.
     Metal is the label of a metal in the surface metal library.
     Defaults to Pt(111) if not specified.
     coverageDependence defaults to False if not specified. If True then coverage dependent kinetics from libraries are used.
+    scalingMethod defaults to 'linear', following Abild Pedersen et al.'s method. 'Advanced' will use Gao et al.'s method, which can scale to different facets.
     """
-    # Normally we wouldn't load the database until after reading the input file,
-    # but we need to load the metal surfaces library to validate the input.
-    metal_db = MetalDatabase()
-    metal_db.load(os.path.join(settings['database.directory'], 'surface'))
 
-    if metal and (bindingEnergies or surfaceSiteDensity):
-        raise InputError("In catalyst_properties section you should only specify a 'metal' shortcut " 
-                         "or the surfaceSiteDensity and bindingEnergies, but not both.")
+    if scalingMethod.lower() not in ['linear', 'advanced']:
+        raise InputError("scalingMethod should be either 'linear' or 'advanced'.")
+    rmg.scaling_method = scalingMethod
 
-    if metal:
-        try:
-            logging.info("Using catalyst surface properties from metal %r.", metal)
-            rmg.binding_energies = metal_db.get_binding_energies(metal)
-            rmg.surface_site_density = metal_db.get_surface_site_density(metal)
-        except DatabaseError:
-            logging.error('Metal %r missing from surface library. Please specify both metal and facet.', metal)
-            raise
-    else: # metal not specified
-        if bindingEnergies is None:
-            rmg.binding_energies = metal_db.get_binding_energies("Pt111")
-            logging.info("Using default binding energies, Pt(111)")
+    if scalingMethod.lower() == 'linear':
+        # Normally we wouldn't load the database until after reading the input file,
+        # but we need to load the metal surfaces library to validate the input.
+        metal_db = MetalDatabase()
+        metal_db.load(os.path.join(settings['database.directory'], 'surface'))
+
+        if metal and (bindingEnergies or surfaceSiteDensity):
+            raise InputError("In catalyst_properties section you should only specify a 'metal' shortcut " 
+                            "or the surfaceSiteDensity and bindingEnergies, but not both.")
+
+        if metal:
+            try:
+                logging.info("Using catalyst surface properties from metal %r.", metal)
+                rmg.binding_energies = metal_db.get_binding_energies(metal)
+                rmg.surface_site_density = metal_db.get_surface_site_density(metal)
+            except DatabaseError:
+                logging.error('Metal %r missing from surface library. Please specify both metal and facet.', metal)
+                raise
+        else: # metal not specified
+            if bindingEnergies is None:
+                rmg.binding_energies = metal_db.get_binding_energies("Pt111")
+                logging.info("Using default binding energies, Pt(111)")
+            else:
+                rmg.binding_energies = convert_binding_energies(bindingEnergies)
+        
+
+            if surfaceSiteDensity is None:
+                rmg.surface_site_density = metal_db.get_surface_site_density("Pt111")
+                logging.info("Using default surface site density, Pt(111)")
+            else:
+                rmg.surface_site_density = SurfaceConcentration(*surfaceSiteDensity)
+
+        logging.info("Using binding energies:\n%r", rmg.binding_energies)
+        logging.info("Using surface site density: %r", rmg.surface_site_density)
+
+        if coverageDependence:
+            logging.info("Coverage dependence is turned ON")
         else:
-            rmg.binding_energies = convert_binding_energies(bindingEnergies)
+            logging.info("Coverage dependence is turned OFF")
+        rmg.coverage_dependence = coverageDependence
     
+    elif scalingMethod.lower() == "advanced":
+        
 
-        if surfaceSiteDensity is None:
-            rmg.surface_site_density = metal_db.get_surface_site_density("Pt111")
-            logging.info("Using default surface site density, Pt(111)")
-        else:
-            rmg.surface_site_density = SurfaceConcentration(*surfaceSiteDensity)
-
-    logging.info("Using binding energies:\n%r", rmg.binding_energies)
-    logging.info("Using surface site density: %r", rmg.surface_site_density)
-
-    if coverageDependence:
-        logging.info("Coverage dependence is turned ON")
-    else:
-        logging.info("Coverage dependence is turned OFF")
-    rmg.coverage_dependence = coverageDependence
 
 def convert_binding_energies(binding_energies):
     """
