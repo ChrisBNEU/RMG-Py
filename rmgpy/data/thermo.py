@@ -1562,7 +1562,7 @@ class ThermoDatabase(object):
         return thermo
 
 
-    def get_adatom_site(self, species, metal_atoms, cn_nums):
+    def get_adatom_site(self, species, metal_atoms1, cn_nums1, metal_atoms2, cn_nums2):
         """
         gets the adatoms, bond orders, and sites for a given species
 
@@ -1571,7 +1571,7 @@ class ThermoDatabase(object):
         :param cn_nums: the coordination numbers for the different sites on the surface
         :return: a list of tuples with the bound atom, site, bond order, and max bond order
         """
-        sites = []
+        sites = {}
         max_bond_orders = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
         
         for atom in species.molecule[0].atoms: 
@@ -1582,15 +1582,32 @@ class ThermoDatabase(object):
                 
                 else:
                     bound_atom = list(atom.bonds.keys())[0]
+                    # what do I do for bonds? see where it is used and if I can use total bonds for getting preferred site. 
                     bonds = list(atom.bonds.values())[0].get_order_num()
-                    max_bond_order = max_bond_orders[bound_atom.symbol]
+                    # max_bond_order = max_bond_orders[bound_atom.symbol]
 
-                    if bound_atom.symbol == 'C':
-                        pref_site = bonds
-                        # check for OH, can have 5 bonds to C
-                        for atom, bond in bound_atom.bonds.items():
+                    # Need to check if there are multiple functional groups attached
+                    # to a single atom. 
+                    groups_xm = []
+                    groups_x = []
+                    for atom, bond in bound_atom.bonds.items():
+                        if bound_atom.symbol == 'C':
+                            # check for OH, can have 5 bonds to C
                             if atom.is_oxygen() and bond.is_single():
-                                max_bond_order = 5.
+                                groups_xm.append(5.)
+                                groups_x.append(1)
+                            else: 
+                                groups_xm.append(4.)
+                                groups_x.append(bond.get_order_num())
+                        else: 
+                            groups_xm.append(max_bond_orders[bound_atom.symbol])
+                    
+                    # this only works for 2 functional groups with a different 
+                    # max bond order. Gao does not define what to do with 3 or more. 
+                    if len(set(groups_xm)) > 1:
+                        max_bo_group1 = max(groups_xm)
+                        max_bo_group2 = min(groups_xm)
+
 
                     if len(atom.site) > 0:
                         site = atom.site
@@ -1640,7 +1657,8 @@ class ThermoDatabase(object):
                         
                     print(f"preferred site for {bound_atom.symbol} is {site} with {pref_site} metal atoms")
         
-                sites.append((bound_atom.symbol, site, bonds, max_bond_order))
+                sites[atom] = {"site1": site1, "bonds": bonds, "max_bond_order": max_bond_order,
+                               "site2": site2, }
 
         return sites
 
@@ -1677,8 +1695,9 @@ class ThermoDatabase(object):
         psi2 = self.surface['metal_properties'].get_psi(metal_to_scale_to)
         
         # determine the preferred sites for the species on each surface
-        surf1_sites = self.get_adatom_site(species,ma1_dict,cn1_dict)
-        surf2_sites = self.get_adatom_site(species,ma2_dict,cn2_dict)
+        # only call once so we can link the sites
+        surf_sites = self.get_adatom_site(species, ma1_dict, cn1_dict, ma2_dict, cn2_dict)
+        # surf2_sites = self.get_adatom_site(species,ma2_dict,cn2_dict)
         
         # check for non_surface_species or vdw
         if not surf1_sites or len(surf1_sites) == 0: 
