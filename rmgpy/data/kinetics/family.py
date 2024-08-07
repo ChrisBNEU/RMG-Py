@@ -1122,20 +1122,20 @@ class KineticsFamily(Database):
                 if quantum_mechanics:
                     quantum_mechanics.run_jobs(item.reactants + item.products, procnum=procnum)
 
-            if entry.facet is None:
-                metal = entry.metal # could be None
-            else:
-                metal = entry.metal + entry.facet
+            # if entry.facet is None:
+            #     metal = entry.metal # could be None
+            # else:
+            #     metal = entry.metal + entry.facet
 
             for reactant in item.reactants:
                 # Clear atom labels to avoid effects on thermo generation, ok because this is a deepcopy
                 reactant.molecule[0].clear_labeled_atoms()
                 reactant.generate_resonance_structures()
-                reactant.thermo = thermo_database.get_thermo_data(reactant, training_set=True, metal_to_scale_to=metal)
+                reactant.thermo = thermo_database.get_thermo_data(reactant, training_set=True, metal_to_scale_to=entry.metal, facet_to_scale_to)
             for product in item.products:
                 product.molecule[0].clear_labeled_atoms()
                 product.generate_resonance_structures()
-                product.thermo = thermo_database.get_thermo_data(product, training_set=True, metal_to_scale_to=metal)
+                product.thermo = thermo_database.get_thermo_data(product, training_set=True, metal_to_scale_to=metal, facet_to_scale_to=facet)
             # Now that we have the thermo, we can get the reverse k(T)
             item.kinetics = data
             data = item.generate_reverse_rate_coefficient()
@@ -1172,6 +1172,7 @@ class KineticsFamily(Database):
                 short_desc="Rate rule generated from training reaction {0}. ".format(entry.index) + entry.short_desc,
                 long_desc="Rate rule generated from training reaction {0}. ".format(entry.index) + entry.long_desc,
                 metal=entry.metal
+                facet=entry.facet, 
             )
             new_entry.data.comment = "From training reaction {1} used for {0}".format(';'.join([g.label for g in template]), entry.index)
 
@@ -3822,7 +3823,7 @@ class KineticsFamily(Database):
                 if atm.label not in root_labels:
                     atm.label = ''
 
-        def get_reactant_thermo(reactant,metal):
+        def get_reactant_thermo(reactant, metal, facet):
             """
             Save the label of reactant and reapply them after thermo estimation to avoid deepcopying
             """
@@ -3831,7 +3832,7 @@ class KineticsFamily(Database):
             reactant.molecule[0].clear_labeled_atoms()
             reactant.generate_resonance_structures()
             if metal:
-                thermo = tdb.get_thermo_data(reactant, metal_to_scale_to=metal)
+                thermo = tdb.get_thermo_data(reactant, metal_to_scale_to=metal, facet_to_scale_to=facet)
             else:
                 thermo = tdb.get_thermo_data(reactant)
             reactant.molecule = [mol]
@@ -3880,17 +3881,18 @@ class KineticsFamily(Database):
         for i, entry in enumerate(entries):
             if estimate_thermo:
                 # parse out the metal to scale to
-                if entry.facet is None:
-                    metal = entry.metal # could be None
-                else:
-                    metal = entry.metal + entry.facet
+                # if entry.facet is None:
+                #     metal = entry.metal # could be None
+                # else:
+                #     metal = entry.metal + entry.facet
+
                 for j, react in enumerate(entry.item.reactants):
                     if rxns[i].reactants[j].thermo is None:
-                        rxns[i].reactants[j].thermo = get_reactant_thermo(react,metal)
+                        rxns[i].reactants[j].thermo = get_reactant_thermo(react, entry.metal, entry.facet)
 
                 for j, react in enumerate(entry.item.products):
                     if rxns[i].products[j].thermo is None:
-                        rxns[i].products[j].thermo = get_reactant_thermo(react,metal)
+                        rxns[i].products[j].thermo = get_reactant_thermo(react ,entry.metal, entry.facet)
             rxns[i].kinetics = entry.data
             rxns[i].rank = entry.rank
 
@@ -3969,7 +3971,7 @@ class KineticsFamily(Database):
                     if estimate_thermo:
                         for rev_react in rrev.reactants:
                             if rev_react.thermo is None:
-                                rev_react.thermo = get_reactant_thermo(rev_react,metal)
+                                rev_react.thermo = get_reactant_thermo(rev_react,entry.metal, entry.facet)
 
                     rev_rxns.append(rrev)
 
@@ -4008,7 +4010,7 @@ class KineticsFamily(Database):
                 if estimate_thermo:
                     for rev_react in rrev.reactants:
                         if rev_react.thermo is None:
-                            rev_react.thermo = get_reactant_thermo(rev_react,metal)
+                            rev_react.thermo = get_reactant_thermo(rev_react,entry.metal, entry.facet)
                 rxns[i] = rrev
 
         if self.own_reverse and get_reverse:

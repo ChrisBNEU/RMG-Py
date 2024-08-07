@@ -268,7 +268,8 @@ class RMG(util.Subject):
             self.reaction_model.pressure_dependence = self.pressure_dependence
         if self.solvent:
             self.reaction_model.solvent_name = self.solvent
-
+        if self.scaling_method:
+            self.reaction_model.scaling_method = self.scaling_method
         if self.surface_site_density:
             self.reaction_model.surface_site_density = self.surface_site_density
             self.reaction_model.core.phase_system.phases["Surface"].site_density = self.surface_site_density.value_si
@@ -439,6 +440,9 @@ class RMG(util.Subject):
         # set global binding energies variable
         if self.binding_energies:
             self.database.thermo.set_binding_energies(self.binding_energies)
+        
+        if self.metal: 
+            self.database.thermo.set_surface(self.metal, self.facet)
 
         # set global variable solvent
         if self.solvent:
