@@ -441,8 +441,8 @@ class RMG(util.Subject):
         if self.binding_energies:
             self.database.thermo.set_binding_energies(self.binding_energies)
         
-        if self.metal: 
-            self.database.thermo.set_surface(self.metal, self.facet)
+        if self.metal_to: 
+            self.database.thermo.set_surface(self.metal_to, self.facet_to)
 
         # set global variable solvent
         if self.solvent:

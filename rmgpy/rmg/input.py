@@ -105,6 +105,7 @@ def database(
 def catalyst_properties(bindingEnergies=None,
                         surfaceSiteDensity=None,
                         metal=None,
+                        facet=None,
                         coverageDependence=False,
                         scalingMethod='linear',
 ):
@@ -129,39 +130,41 @@ def catalyst_properties(bindingEnergies=None,
     if metal and (bindingEnergies or surfaceSiteDensity):
         raise InputError("In catalyst_properties section you should only specify a 'metal' shortcut " 
                         "or the surfaceSiteDensity and bindingEnergies, but not both.")
+    if rmg.scaling_method == 'linear':
+        if metal:
+            try:
+                logging.info("Using catalyst surface properties from metal %r.", metal)
 
-    if metal:
-        try:
-            logging.info("Using catalyst surface properties from metal %r.", metal)
+                # only need binding energies for simple scaling
+                if rmg.scaling_method == 'linear':
+                    rmg.binding_energies = metal_db.get_binding_energies(metal)
 
-            # only need binding energies for simple scaling
-            if rmg.scaling_method == 'linear':
-                rmg.binding_energies = metal_db.get_binding_energies(metal)
+                rmg.surface_site_density = metal_db.get_surface_site_density(metal)
+            except DatabaseError:
+                logging.error('Metal %r missing from surface library. Please specify both metal and facet.', metal)
+                raise
+        else: # metal not specified
+            if bindingEnergies is None and rmg.scaling_method == 'linear':
+                rmg.binding_energies = metal_db.get_binding_energies("Pt111")
+                logging.info("Using default binding energies, Pt(111)")
+            elif rmg.scaling_method == 'linear':
+                rmg.binding_energies = convert_binding_energies(bindingEnergies)
+            else:
+                logging.info("Using advanced scaling method, no binding energies required")
+        
 
-            rmg.surface_site_density = metal_db.get_surface_site_density(metal)
-        except DatabaseError:
-            logging.error('Metal %r missing from surface library. Please specify both metal and facet.', metal)
-            raise
-    else: # metal not specified
-        if bindingEnergies is None and rmg.scaling_method == 'linear':
-            rmg.binding_energies = metal_db.get_binding_energies("Pt111")
-            logging.info("Using default binding energies, Pt(111)")
-        elif rmg.scaling_method == 'linear':
-            rmg.binding_energies = convert_binding_energies(bindingEnergies)
-        else:
-            logging.info("Using advanced scaling method, no binding energies required")
-    
+            if surfaceSiteDensity is None:
+                rmg.surface_site_density = metal_db.get_surface_site_density("Pt111")
+                logging.info("Using default surface site density, Pt(111)")
+            else:
+                rmg.surface_site_density = SurfaceConcentration(*surfaceSiteDensity)
 
-        if surfaceSiteDensity is None:
-            rmg.surface_site_density = metal_db.get_surface_site_density("Pt111")
-            logging.info("Using default surface site density, Pt(111)")
-        else:
-            rmg.surface_site_density = SurfaceConcentration(*surfaceSiteDensity)
-    
     # this should be how both do it
-    if rmg.scaling_method == 'advanced':
+    elif rmg.scaling_method == 'advanced':
         rmg.metal_to = metal
         rmg.facet_to = facet
+        rmg.surface_site_density = metal_db.get_surface_site_density(metal+facet)
+        
 
     # logging.info("Using binding energies:\n%r", rmg.binding_energies)
     logging.info("Using surface site density: %r", rmg.surface_site_density)

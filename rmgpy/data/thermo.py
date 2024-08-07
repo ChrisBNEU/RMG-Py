@@ -1283,7 +1283,7 @@ class ThermoDatabase(object):
 
             # for surface species, first check libraries
             if species.contains_surface_site():
-                if scaling_method == "linear"
+                if self.scaling_method == "linear":
                     if entry.metal is not None:
                         if entry.facet is not None:
                             db_label = entry.metal + entry.facet
@@ -1294,22 +1294,22 @@ class ThermoDatabase(object):
                     else:  # assume the thermo came from pt 111
                         thermo0 = self.correct_binding_energy(thermo0, species, metal_to_scale_from=None, metal_to_scale_to=metal_to_scale_to)
 
-                elif scaling_method == "advanced":
+                elif self.scaling_method == "advanced":
                     thermo0 = self.correct_binding_energy_advanced(
                         thermo0, species, metal_to_scale_from=entry.metal, facet_to_scale_from=entry.facet,
-                        metal_to_scale_to=metal_to_scale_to, facet_to_scale_to=facet_to_scale_to)
+                        metal_to_scale_to=self.metal_to, facet_to_scale_to=self.facet_to)
             return thermo0
 
         # if surface species is not in libraries, try to estimate it
         if species.contains_surface_site():
             try:
                 thermo0 = self.get_thermo_data_for_surface_species(species)
-                if scaling_method == "linear":
+                if self.scaling_method == "linear":
                     thermo0 = self.correct_binding_energy(thermo0, species, metal_to_scale_from="Pt111", metal_to_scale_to=metal_to_scale_to)  # group adsorption values come from Pt111
-                elif scaling_method == "advanced":
+                elif self.scaling_method == "advanced":
                     thermo0 = self.correct_binding_energy_advanced(
                         thermo0, species, metal_to_scale_from="Pt", facet_to_scale_from='111', 
-                        metal_to_scale_to=metal_to_scale_to, facet_to_scale_to=facet_to_scale_to
+                        metal_to_scale_to=self.metal_to, facet_to_scale_to=self.facet_to
                         )
                 return thermo0
             except:
@@ -1475,8 +1475,8 @@ class ThermoDatabase(object):
         self.binding_energies = binding_energies
 
     def set_surface(self, metal, facet=None):
-        self.metal = metal
-        self.facet = facet
+        self.metal_to = metal
+        self.facet_to = facet
         self.scaling_method = "advanced"
 
 
@@ -1740,7 +1740,6 @@ class ThermoDatabase(object):
         # check for vdw
         if not surf_sites or len(surf_sites) == 0: 
             print(f"species {species.label} has no sites")
-            print(thermo.H298.value_si/9.68e4)
             return thermo
 
         # print for logging
@@ -1766,6 +1765,11 @@ class ThermoDatabase(object):
             BE_diff += 0.1*alpha*(psi2-psi1) + 0.2*(1-alpha)*(cn2-cn1)
 
             comments.append(f"{atom.symbol} scaled from {metal1_str} at {site1} to {metal2_str} at site {site2} with alpha={alpha:.2f}")
+
+        # ensure that we have the correct object
+        if not isinstance(thermo, ThermoData):
+            thermo = thermo.to_thermo_data()
+            find_cp0_and_cpinf(species, thermo)
 
         # update the enthalpy of formation to it's new value
         H298_orig = (thermo.H298.value_si)/9.68e4

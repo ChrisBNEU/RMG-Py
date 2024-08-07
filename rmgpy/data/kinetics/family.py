@@ -1131,11 +1131,11 @@ class KineticsFamily(Database):
                 # Clear atom labels to avoid effects on thermo generation, ok because this is a deepcopy
                 reactant.molecule[0].clear_labeled_atoms()
                 reactant.generate_resonance_structures()
-                reactant.thermo = thermo_database.get_thermo_data(reactant, training_set=True, metal_to_scale_to=entry.metal, facet_to_scale_to)
+                reactant.thermo = thermo_database.get_thermo_data(reactant, training_set=True, metal_to_scale_to=entry.metal, facet_to_scale_to=entry.facet)
             for product in item.products:
                 product.molecule[0].clear_labeled_atoms()
                 product.generate_resonance_structures()
-                product.thermo = thermo_database.get_thermo_data(product, training_set=True, metal_to_scale_to=metal, facet_to_scale_to=facet)
+                product.thermo = thermo_database.get_thermo_data(product, training_set=True, metal_to_scale_to=entry.metal, facet_to_scale_to=entry.facet)
             # Now that we have the thermo, we can get the reverse k(T)
             item.kinetics = data
             data = item.generate_reverse_rate_coefficient()
@@ -1171,7 +1171,7 @@ class KineticsFamily(Database):
                 reference=entry.reference,
                 short_desc="Rate rule generated from training reaction {0}. ".format(entry.index) + entry.short_desc,
                 long_desc="Rate rule generated from training reaction {0}. ".format(entry.index) + entry.long_desc,
-                metal=entry.metal
+                metal=entry.metal,
                 facet=entry.facet, 
             )
             new_entry.data.comment = "From training reaction {1} used for {0}".format(';'.join([g.label for g in template]), entry.index)
