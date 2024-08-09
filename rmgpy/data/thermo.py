@@ -1746,9 +1746,6 @@ class ThermoDatabase(object):
         metal1_str = f"{metal_to_scale_from}({facet_to_scale_from})"
         metal2_str = f"{metal_to_scale_to}({facet_to_scale_to})"
 
-        theta = 0
-        E_ads_new = 0
-
         # scale the enthalpy of formation at 298. if there are multiple bound atoms
         # then we will add like we do in lsrs
         BE_diff = 0
