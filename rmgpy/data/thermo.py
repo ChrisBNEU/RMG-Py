@@ -1702,7 +1702,8 @@ class ThermoDatabase(object):
         return sites
 
     def correct_binding_energy_advanced(self, thermo, species, metal_to_scale_from=None,
-                                        metal_to_scale_to=None, facet_to_scale_from=None, facet_to_scale_to=None):
+                                        metal_to_scale_to=None, facet_to_scale_from=None, facet_to_scale_to=None,
+                                        debug = False,):
         """
         Uses the binding energy correction proposed by gao, which allows for scaling
         from one metal and facet (e.g. Pt111) to a completely different metal and 
@@ -1757,6 +1758,11 @@ class ThermoDatabase(object):
             cn1 = cn1_dict[site1]
             cn2 = cn2_dict[site2]
 
+            if debug: 
+                print("psi1: ", psi1, " psi2: ", psi2)
+                print("site1: ", site1, " site2: ", site2)
+                print("cn1: ", cn1, " cn2: ", cn2)
+
             # get relative difference in binding energies. assuming relative enthalpy diff from
             # Hf0k to Hf298 remains the same for both species. 
             BE_diff += 0.1*alpha*(psi2-psi1) + 0.2*(1-alpha)*(cn2-cn1)
@@ -1775,6 +1781,7 @@ class ThermoDatabase(object):
 
         # adjust the H298
         thermo.H298.value_si = H298_new*9.68e4
+
 
         return thermo
 
@@ -1965,7 +1972,7 @@ class ThermoDatabase(object):
 
         return True
 
-    def get_thermo_data_from_libraries(self, species, training_set=None):
+    def get_thermo_data_from_libraries(self, species, training_set=None, check_solvent=False):
         """
         Return the thermodynamic parameters for a given :class:`Species`
         object `species`. This function first searches the loaded libraries
@@ -1976,13 +1983,15 @@ class ThermoDatabase(object):
         
         Returns: ThermoData or None
         """
-        import rmgpy.rmg.main
+        if check_solvent:
+            import rmgpy.rmg.main
+            
         thermo_data = None
 
         # chatelak 11/15/14: modification to introduce liquid phase thermo libraries
         library_list = deepcopy(self.library_order)  # copy the value to not affect initial object
 
-        if rmgpy.rmg.main.solvent is not None:
+        if check_solvent and rmgpy.rmg.main.solvent is not None:
             liq_libraries = []
             # Liquid phase simulation part:
             # This bloc "for": Identify liquid phase libraries and store them in liq_libraries
