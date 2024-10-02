@@ -1255,7 +1255,7 @@ class ThermoDatabase(object):
                 continue
             self.groups['ring'].generic_nodes.append(label)
 
-    def get_thermo_data(self, species, metal_to_scale_to=None, facet_to_scale_to=None, training_set=None):
+    def get_thermo_data(self, species, metal_to_scale_to=None, facet_to_scale_to=None, training_set=None, get_rmg_inputs=False):
         """
         Return the thermodynamic parameters for a given :class:`Species`
         object `species`. This function first searches the loaded libraries
@@ -1270,7 +1270,8 @@ class ThermoDatabase(object):
         
         Returns: ThermoData
         """
-        from rmgpy.rmg.input import get_input
+        if get_rmg_inputs:
+            from rmgpy.rmg.input import get_input
 
         thermo0 = self.get_thermo_data_from_libraries(species)
 
@@ -1526,7 +1527,7 @@ class ThermoDatabase(object):
         else:
             return normalized_bonds
 
-    def correct_binding_energy(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None):
+    def correct_binding_energy(self, thermo, species, metal_to_scale_from=None, metal_to_scale_to=None, return_delta = False):
         """
         Changes the provided thermo, by applying a linear scaling relation
         to correct the adsorption energy.
@@ -1539,7 +1540,10 @@ class ThermoDatabase(object):
         """
 
         if metal_to_scale_from == metal_to_scale_to:
-            return thermo
+            if return_delta: 
+                return 0
+            else: 
+                return thermo
 
         if metal_to_scale_to is None:
             metal_to_scale_to_binding_energies = self.binding_energies
@@ -1562,7 +1566,11 @@ class ThermoDatabase(object):
             delta_energy.value_si = metal_to_scale_to_binding_energies[element].value_si - metal_to_scale_from_binding_energies[element].value_si
 
         if all(-0.01 < v.value_si < 0.01 for v in delta_atomic_adsorption_energy.values()):
-            return thermo
+            if return_delta:
+                delta = 0
+                return_delta
+            else: 
+                return thermo
 
         normalized_bonds = self.get_bond_order(species, return_bond_orders=False)
 
@@ -1572,13 +1580,22 @@ class ThermoDatabase(object):
 
         # now edit the adsorptionThermo using LSR
         comments = []
+        delta = 0
         for element in 'CHON':
             if normalized_bonds[element]:
                 change_in_binding_energy = delta_atomic_adsorption_energy[element].value_si * normalized_bonds[element]
-                thermo.H298.value_si += change_in_binding_energy
+                if not return_delta:
+                    thermo.H298.value_si += change_in_binding_energy
+                else: 
+                    delta += change_in_binding_energy
                 comments.append(f'{normalized_bonds[element]:.2f}{element}')
+                
         thermo.comment += " Binding energy corrected by LSR ({}) from {}".format('+'.join(comments), metal_to_scale_from)
-        return thermo
+
+        if return_delta:
+            return delta
+        else: 
+            return thermo
 
 
     def get_pref_site(self, species, metal_atoms, cn_nums, bound_atom, bonds):
@@ -1649,6 +1666,7 @@ class ThermoDatabase(object):
         sites = {}
         max_bond_orders = {'C': 4., 'O': 2., 'N': 3., 'H': 1.}
 
+        # CHO scales weird. make some decision tree for scaling, for now hardcode
         for atom in species.molecule[0].atoms: 
             if atom.is_surface_site():
                 # vdw check
@@ -1664,13 +1682,27 @@ class ThermoDatabase(object):
                     # then there effectively 2 functional groups in the advanced lsr equation
                     count_coh = 0
                     count_cr = 0
+
                     if bound_atom.symbol == 'C':
-                        for atom, bond in bound_atom.bonds.items():
-                            # check for OH, can have 5 bonds to C
-                            if atom.is_oxygen() and bond.is_single():
-                                count_coh += 1
-                            elif not atom.is_surface_site(): 
-                                count_cr += bond.get_order_num()
+                        # CHO scales weird. make some decision tree for scaling, for now hardcode
+                        cho_adj = """
+                        1 C u0 p0 c0 {2,D} {3,S} {4,S}
+                        2 O u0 p2 c0 {1,D}
+                        3 H u0 p0 c0 {1,S}
+                        4 X u0 p0 c0 {1,S}
+                        """
+                        cho = Species().from_adjacency_list(cho_adj)
+
+                        if species.molecule[0].is_isomorphic(cho.molecule[0]):
+                            count_coh = 2
+                            count_cr = 1
+                        else: 
+                            for atom, bond in bound_atom.bonds.items():
+                                # check for OH, can have 5 bonds to C
+                                if atom.is_oxygen() and bond.is_single():
+                                    count_coh += 1
+                                elif not atom.is_surface_site(): 
+                                    count_cr += bond.get_order_num()
                                 
                     if count_coh > 0:
                         xm1 = 5
@@ -1690,12 +1722,21 @@ class ThermoDatabase(object):
                     alpha = alpha1 - alpha2
 
                     # if the site is specified, use it for metal one (i.e. the database we are scaling from)
+                    # try to find a similarly configured site on the other metal
                     if len(atom.site) > 0:
                         site1 = atom.site
+                        pref_metal_atoms1 = metal_atoms1[site1]
+                        for site, metal_atoms in metal_atoms2.items():
+                            if metal_atoms == pref_metal_atoms1:
+                                site2 = site
+                        if not site2:
+                            site2 = self.get_pref_site(species, metal_atoms2, cn_nums2, bound_atom, bonds)
+                        
                     else: 
                         site1 = self.get_pref_site(species, metal_atoms1, cn_nums1, bound_atom, bonds)
+                        site2 = self.get_pref_site(species, metal_atoms2, cn_nums2, bound_atom, bonds)
                     
-                    site2 = self.get_pref_site(species, metal_atoms2, cn_nums2, bound_atom, bonds)
+
 
                 sites[bound_atom] = {"site1": site1, "site2": site2, "alpha" : alpha}
 
@@ -1781,9 +1822,98 @@ class ThermoDatabase(object):
 
         # adjust the H298
         thermo.H298.value_si = H298_new*9.68e4
-
-
+        print(f"{atom.symbol} scaled from {metal1_str} at {site1} to {metal2_str} at site {site2} with alpha={alpha:.2f}")
         return thermo
+
+    def correct_binding_energy_hybrid(self, thermo, species, metal_to_scale_from=None,
+                                        metal_to_scale_to=None, facet_to_scale_from=None, facet_to_scale_to=None,
+                                        debug = False,):
+        """
+        Uses the binding energy correction proposed by gao, which allows for scaling
+        from one metal and facet (e.g. Pt111) to a completely different metal and 
+        facet (e.g. Cu111). 
+
+        :param thermo: the thermo data to correct
+        :param species: the species to correct
+        :param metal_to_scale_from: the metal to scale from (e.g. Pt)
+        :param metal_to_scale_to: the metal to scale to (e.g. Cu)
+        :param facet_to_scale_from: the facet to scale from (e.g. 111)
+        :param facet_to_scale_to: the facet to scale to (e.g. 111)
+        :return: the corrected thermo data
+
+        """
+
+        if metal_to_scale_from == metal_to_scale_to and facet_to_scale_from == facet_to_scale_to:
+            return thermo
+        elif metal_to_scale_from is None or metal_to_scale_to is None or facet_to_scale_from is None or facet_to_scale_to is None:
+            raise ValueError("If you are scaling, you must specify both the metal and the facet to scale from and to.")
+
+        # get the required attributes for every facet and metal involved
+        cn1_dict = self.surface['site_properties'].get_all_coordination_numbers_on_facet(facet_to_scale_from)
+        cn2_dict = self.surface['site_properties'].get_all_coordination_numbers_on_facet(facet_to_scale_to)
+
+        ma1_dict = self.surface['site_properties'].get_all_metal_atoms_on_facet(facet_to_scale_from)
+        ma2_dict = self.surface['site_properties'].get_all_metal_atoms_on_facet(facet_to_scale_to)
+
+        psi1 = self.surface['metal_properties'].get_psi(metal_to_scale_from)
+        psi2 = self.surface['metal_properties'].get_psi(metal_to_scale_to)
+
+        # determine the preferred sites for the species on each surface
+        # only call once so we can link the sites
+        surf_sites = self.get_sites(species, ma1_dict, cn1_dict, ma2_dict, cn2_dict)
+
+        # check for vdw
+        if not surf_sites or len(surf_sites) == 0: 
+            print(f"species {species.label} has no sites")
+            return thermo
+
+        # print for logging
+        metal1_str = f"{metal_to_scale_from}({facet_to_scale_from})"
+        metal2_str = f"{metal_to_scale_to}({facet_to_scale_to})"
+
+        # scale the enthalpy of formation at 298. if there are multiple bound atoms
+        # then we will add like we do in lsrs
+        BE_diff = 0
+        comments = []
+
+        delta = self.correct_binding_energy(
+            thermo, species, metal_to_scale_from=metal_to_scale_from, metal_to_scale_to=metal_to_scale_to, return_delta=True)
+        print("type hyb delta? ", type(delta))
+        for atom, site_info in surf_sites.items():
+            site1 = site_info['site1']
+            site2 = site_info['site2']
+            alpha = site_info['alpha']
+            cn1 = cn1_dict[site1]
+            cn2 = cn2_dict[site2]
+
+            if debug: 
+                print("psi1: ", psi1, " psi2: ", psi2)
+                print("site1: ", site1, " site2: ", site2)
+                print("cn1: ", cn1, " cn2: ", cn2)
+
+            # get relative difference in binding energies. assuming relative enthalpy diff from
+            # Hf0k to Hf298 remains the same for both species. 
+            BE_diff += 0.2*(1-alpha)*(cn2-cn1)
+
+            comments.append(f"{atom.symbol} scaled from {metal1_str} at {site1} to {metal2_str} at site {site2} with alpha={alpha:.2f}")
+
+        
+        # ensure that we have the correct object
+        if not isinstance(thermo, ThermoData):
+            thermo = thermo.to_thermo_data()
+            find_cp0_and_cpinf(species, thermo)
+
+        # update the enthalpy of formation to it's new value
+        H298_orig = (thermo.H298.value_si)/9.68e4
+        H298_new = H298_orig + BE_diff
+        thermo.comment += " Binding energy corrected by Gao relations ({})".format(', '.join(comments))
+
+        # adjust the H298
+        thermo.H298.value_si = H298_new*9.68e4 + delta
+
+        print("h298_orig: ", H298_orig, " delta: ", delta/9.68e4, " be_diff: ", BE_diff, H298_new*9.68e4 + delta)
+        return thermo
+
 
     def get_thermo_data_for_surface_species(self, species):
         """
@@ -2028,7 +2158,7 @@ class ThermoDatabase(object):
                 if len(thermo_data) != 3:
                     raise RuntimeError("thermo_data should be a tuple (thermo_data, library, entry), "
                                        "not {0}".format(thermo_data))
-                if rmgpy.rmg.main.solvent is not None and training_set is None:
+                if check_solvent and rmgpy.rmg.main.solvent is not None and training_set is None:
                     thermo_data[0].comment += 'Thermo library corrected for liquid phase: ' + label
                 else:
                     thermo_data[0].comment += 'Thermo library: ' + label
